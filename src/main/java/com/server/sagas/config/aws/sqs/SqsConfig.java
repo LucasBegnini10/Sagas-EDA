@@ -1,4 +1,4 @@
-package com.server.sagas.config.aws;
+package com.server.sagas.config.aws.sqs;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;

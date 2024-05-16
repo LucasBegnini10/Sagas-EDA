@@ -6,6 +6,7 @@ import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.server.sagas.config.aws.sqs.SqsListener;
 import com.server.sagas.ticket.dto.BuyTicketDTO;
 import com.server.sagas.ticket.dto.TicketErrorHoldDTO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,10 +14,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class OrderListener {
     @Value("${aws.sqs.request-buy-ticket.queue}")
-    private String queueName;
+    private String requestBuyTicketQueue;
 
     @Value("${aws.sqs.ticket-error-hold-queue}")
     private String queueTicketErrorHold;
@@ -31,19 +34,12 @@ public class OrderListener {
     }
 
     @Scheduled(fixedDelay = 2000)
-    public void consumeMessages() {
+    public void listenRequestsBuyTicket() {
         try {
-            String queueUrl = amazonSQSClient.getQueueUrl(queueName).getQueueUrl();
+            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.requestBuyTicketQueue);
 
-            ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl)
-                    .withWaitTimeSeconds(5)
-                    .withMaxNumberOfMessages(10);
-
-            ReceiveMessageResult receiveMessageResult = amazonSQSClient.receiveMessage(receiveMessageRequest);
-
-            for (Message message : receiveMessageResult.getMessages()) {
+            for (Message message : messages) {
                 processRequestBuyTicket(message.getBody());
-                amazonSQSClient.deleteMessage(queueUrl, message.getReceiptHandle());
             }
 
         } catch (Exception e) {
@@ -51,20 +47,13 @@ public class OrderListener {
         }
     }
 
-    @Scheduled(fixedDelay = 5000)
+    @Scheduled(fixedDelay = 2000)
     public void consumeMessagesTicketError() {
         try {
-            String queueUrl = amazonSQSClient.getQueueUrl(queueTicketErrorHold).getQueueUrl();
+            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.queueTicketErrorHold);
 
-            ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl)
-                    .withWaitTimeSeconds(20)
-                    .withMaxNumberOfMessages(10);
-
-            ReceiveMessageResult receiveMessageResult = amazonSQSClient.receiveMessage(receiveMessageRequest);
-
-            for (Message message : receiveMessageResult.getMessages()) {
+            for (Message message : messages) {
                 processTicketErrorHold(message.getBody());
-                amazonSQSClient.deleteMessage(queueUrl, message.getReceiptHandle());
             }
 
         } catch (Exception e) {

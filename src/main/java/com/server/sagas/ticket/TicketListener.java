@@ -6,16 +6,19 @@ import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.server.sagas.config.aws.sqs.SqsListener;
 import com.server.sagas.order.OrderModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class TicketListener {
     @Value("${aws.sqs.order-created.queue}")
-    private String queueName;
+    private String orderCreatedQueue;
 
     private final AmazonSQS amazonSQSClient;
     private final TicketService ticketService;
@@ -27,19 +30,12 @@ public class TicketListener {
     }
 
     @Scheduled(fixedDelay = 2000)
-    public void consumeMessages() {
+    public void listenOrdersCreated() {
         try {
-            String queueUrl = amazonSQSClient.getQueueUrl(queueName).getQueueUrl();
+            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.orderCreatedQueue);
 
-            ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(queueUrl)
-                    .withWaitTimeSeconds(5)
-                    .withMaxNumberOfMessages(10);
-
-            ReceiveMessageResult receiveMessageResult = amazonSQSClient.receiveMessage(receiveMessageRequest);
-
-            for (Message message : receiveMessageResult.getMessages()) {
+            for (Message message : messages) {
                 processHoldTicketByOrder(message.getBody());
-                amazonSQSClient.deleteMessage(queueUrl, message.getReceiptHandle());
             }
 
         } catch (Exception e) {
