@@ -24,8 +24,7 @@ public class OrderService {
 
     public void createOrderByRequestBuyTicket(BuyTicketDTO buyTicketDTO){
         OrderModel orderCreated = createOrder(buyTicketDTO);
-        System.out.println("Order created ==> " + orderCreated.getOrderId());
-
+        System.out.println("Create order => " + orderCreated.getOrderId());
         this.sendEventCreatedOrder(orderCreated);
     }
 
@@ -52,9 +51,8 @@ public class OrderService {
         }
     }
 
-    public void cancelOrder(OrderModel order, String cause){
+    public void cancelOrder(OrderModel order){
         System.out.println("Cancel order => " + order.getOrderId());
         //cancel order
-        //notify user: cause
     }
 }

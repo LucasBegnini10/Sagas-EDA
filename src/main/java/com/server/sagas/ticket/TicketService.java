@@ -5,7 +5,6 @@ import com.amazonaws.services.sns.model.Topic;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.server.sagas.order.OrderModel;
 import com.server.sagas.ticket.dto.BuyTicketDTO;
-import com.server.sagas.ticket.dto.TicketErrorHoldDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,8 +19,11 @@ public class TicketService {
     @Value("${aws.sns.topic.ticket-held.arn}")
     private String ticketHeldTopicArn;
 
-    @Value("${aws.sns.topic.ticket-error-hold.arn}")
-    private String tickedErrorHoldTopicArn;
+    @Value("${aws.sns.topic.ticket-hold-error.arn}")
+    private String ticketErrorHoldTopicArn;
+
+    @Value("${aws.sns.topic.ticket-confirm-error.arn}")
+    private String ticketConfirmErrorTopicArn;
 
 
     @Autowired
@@ -36,6 +38,7 @@ public class TicketService {
 
             Topic topic = new Topic().withTopicArn(requestBuyTicketTopicArn);
 
+            System.out.println("Requested buy ticket!");
             this.snsClient.publish(topic.getTopicArn(), jsonStr);
         } catch (com.fasterxml.jackson.core.JsonProcessingException ex){
             ex.printStackTrace();
@@ -44,13 +47,13 @@ public class TicketService {
 
     public void holdTicketByOrder(OrderModel order){
         if(!eventHasTicketsAvailable(order.getEventId())){
-            sendEventErrorHoldTicket(order, "UNAVAILABLE");
+            sendEventErrorHoldTicket(order);
         }else{
             try {
                 holdTicket(order);
                 sendEventTicketHeld(order);
             } catch (Exception ex){
-                sendEventErrorHoldTicket(order, ex.getMessage());
+                sendEventErrorHoldTicket(order);
             }
         }
     }
@@ -76,19 +79,48 @@ public class TicketService {
         }
     }
 
-    private void sendEventErrorHoldTicket(OrderModel order, String message){
+    private void sendEventErrorHoldTicket(OrderModel order){
         try {
-
-            TicketErrorHoldDTO payload = new TicketErrorHoldDTO(message, order);
-
             ObjectMapper Obj = new ObjectMapper();
-            String jsonStr = Obj.writeValueAsString(payload);
+            String jsonStr = Obj.writeValueAsString(order);
 
-            Topic topic = new Topic().withTopicArn(tickedErrorHoldTopicArn);
+            Topic topic = new Topic().withTopicArn(ticketErrorHoldTopicArn);
 
             this.snsClient.publish(topic.getTopicArn(), jsonStr);
         } catch (com.fasterxml.jackson.core.JsonProcessingException ex){
             ex.printStackTrace();
         }
     }
+
+    public void confirmHoldTicker(OrderModel order){
+        try {
+            confirmTicket(order);
+            //Finish flow :)
+        } catch (Exception ex){
+            sendEventTicketConfirmError(order);
+        }
+    }
+
+    private void confirmTicket(OrderModel order) throws Exception {
+        //confirm
+        throw new Exception("Error confirm ticket");
+    }
+
+    private void sendEventTicketConfirmError(OrderModel order){
+        try {
+            ObjectMapper Obj = new ObjectMapper();
+            String jsonStr = Obj.writeValueAsString(order);
+
+            Topic topic = new Topic().withTopicArn(ticketConfirmErrorTopicArn);
+
+            this.snsClient.publish(topic.getTopicArn(), jsonStr);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex){
+            ex.printStackTrace();
+        }
+    }
+
+    public void cancelHold(OrderModel orderModel){
+        //cancel
+    }
+
 }

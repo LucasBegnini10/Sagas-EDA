@@ -2,13 +2,10 @@ package com.server.sagas.order;
 
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
-import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.server.sagas.config.aws.sqs.SqsListener;
 import com.server.sagas.ticket.dto.BuyTicketDTO;
-import com.server.sagas.ticket.dto.TicketErrorHoldDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,11 +15,11 @@ import java.util.List;
 
 @Service
 public class OrderListener {
-    @Value("${aws.sqs.request-buy-ticket.queue}")
-    private String requestBuyTicketQueue;
+    @Value("${aws.sqs.order-create.queue}")
+    private String orderCreateQueue;
 
-    @Value("${aws.sqs.ticket-error-hold-queue}")
-    private String queueTicketErrorHold;
+    @Value("${aws.sqs.order-cancel-queue}")
+    private String orderCancelQueue;
 
     private final AmazonSQS amazonSQSClient;
     private final OrderService orderService;
@@ -34,12 +31,12 @@ public class OrderListener {
     }
 
     @Scheduled(fixedDelay = 2000)
-    public void listenRequestsBuyTicket() {
+    public void listenOrderCreate() {
         try {
-            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.requestBuyTicketQueue);
+            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.orderCreateQueue);
 
             for (Message message : messages) {
-                processRequestBuyTicket(message.getBody());
+                createOrderByMessage(message.getBody());
             }
 
         } catch (Exception e) {
@@ -47,21 +44,7 @@ public class OrderListener {
         }
     }
 
-    @Scheduled(fixedDelay = 2000)
-    public void consumeMessagesTicketError() {
-        try {
-            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.queueTicketErrorHold);
-
-            for (Message message : messages) {
-                processTicketErrorHold(message.getBody());
-            }
-
-        } catch (Exception e) {
-            System.out.println("Error receiving message => " + e);
-        }
-    }
-
-    private void processRequestBuyTicket(String message) {
+    private void createOrderByMessage(String message) {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
             BuyTicketDTO buyTicketDTO = objectMapper.readValue(message, BuyTicketDTO.class);
@@ -71,11 +54,25 @@ public class OrderListener {
         }
     }
 
-    private void processTicketErrorHold(String message) {
+    @Scheduled(fixedDelay = 2000)
+    public void listenOrderCancel() {
+        try {
+            List<Message> messages = SqsListener.listen(this.amazonSQSClient, this.orderCancelQueue);
+
+            for (Message message : messages) {
+                processOrderCancel(message.getBody());
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error receiving message => " + e);
+        }
+    }
+
+    private void processOrderCancel(String message) {
         try {
             ObjectMapper objectMapper = new ObjectMapper();
-            TicketErrorHoldDTO ticketErrorHoldDTO = objectMapper.readValue(message, TicketErrorHoldDTO.class);
-            this.orderService.cancelOrder(ticketErrorHoldDTO.getOrder(), ticketErrorHoldDTO.getMessage());
+            OrderModel order = objectMapper.readValue(message, OrderModel.class);
+            this.orderService.cancelOrder(order);
         } catch (JsonProcessingException ex){
             ex.printStackTrace();
         }
